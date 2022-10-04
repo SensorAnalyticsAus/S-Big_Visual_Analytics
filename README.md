@@ -31,7 +31,7 @@ Use
 
 - Follow within-app instructions to start analysing videos or image folders for discovering anomalous (strange) events.
 
-- VM's and host PC's ip addresses are in the login splash screen, may need to scroll back to see. These can also be found by executing ifconfig -a in the ssh/web shell. There are three options to exchange data with the VA-app:
+- VM's and host PC's ip addresses are in the pre and post login splash screens, may need to scroll back to see. These can also be found by executing ifconfig -a in the ssh/web shell. There are three options to exchange data with the VA-app:
 
 	(1) Once VM's ip address is known, files can be transferred from host PC --> VM using scp (or putty for win). NB: for scp and ssh the address should be saauser@your_router_assigned_ip instead of root@... as shown in the blue startup screen (we can only use root@... after root password is chosen).
 	(2) VM also exports its ~/upload folder as a SAMBA share, which can also be used for data transfers.
