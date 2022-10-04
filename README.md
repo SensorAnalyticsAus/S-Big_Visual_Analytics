@@ -23,7 +23,7 @@ Installation
 [Download from here]: http://www.sensoranalytics.com.au/assets/html/va-download.html
 - S-BigVA VM can be [Download from here].
 - Double clicking on the downloaded bigva*.ova distro file will import the VM into VirtualBox, process may take several minutes to few hours depending on the cpu-speed of the host PC. 
-- Adjust memory according to the host PC from the VM Settings (System menu). Allocate 4-6GB to this VM for an 8GB memory computer.
+- Adjust memory according to the host PC from the VM Settings (System menu). Allocate 4GB to this VM for an 8GB memory computer.
 - Once import is completed, pressing the start button will launch the VM (errors and warnings can be safely ignored as long as the VM continues its boot-up).
 - During VM startup, please allow VirtualBox to open required port in the PC's firewall if prompted.
 - During VM startup, if a dialog box appears regarding a network interface not being present, please select the [network interface setting] option and select the interface that's available on your system.
@@ -31,7 +31,7 @@ Installation
 Use
 ===
 - The VA-app is designed to be used from host PC. Normally login to VM is not needed. The app can be launched in a web browser as http://localhost:8081 
-- Opening a web browser on PC host http://localhost:8081 or its IP Address (as shown in login screen) will bring up the VA-app. Web Login shell is at https://localhost:12320 or https://router_assigned_ip:12320 (note it uses https hence browser exception has to be added when prompted).
+- Opening a web browser on PC host http://localhost:8081 or its IP Address (as shown in login screen) will bring up the VA-app. Web Login shell, for accessing the VM for admin etc, is at https://localhost:12320 or https://router_assigned_ip:12320 (note it uses https hence browser exception has to be added when prompted).
 
 - Follow within-app instructions to start analysing videos or image folders for discovering anomalous (strange) events.
 
@@ -51,7 +51,7 @@ The VA-App loads one such example on startup. User inputs are already pre-filled
 
 NB: For repeat trials with varying number of clusters, only the 'KMeans' and the two subsequent paragraphs need to be run (from paragraph's cog-wheel 'Run all below' option), [for further information].
 							
-[for futher information]: http://sensoranalytics.com.au/#_va
+[for further information]: http://sensoranalytics.com.au/#_va
 
 Troubleshooting
 ===============
