@@ -23,8 +23,7 @@ System Requirement
 Installation
 ============
 [Downloaded from here]: http://www.sensoranalytics.com.au/assets/html/va-download.html
-- S-BigVA VM can be [Downloaded from here]. <p> The VM's login and samba login are both the same. 
-<p>username: saauser password: saauserV7 
+- S-BigVA VM can be [Downloaded from here]. The VM's login and samba login are both the same. Username: saauser password: saauserV7 
 - Double clicking on the downloaded bigva*.ova distro file will import the VM into VirtualBox, process may take several minutes to few hours depending on the cpu-speed of the host PC. 
 - Adjust memory according to the host PC from the VM Settings (System menu). Allocate 4GB to this VM for an 8GB memory computer.
 - Once import is completed, pressing the start button will launch the VM (errors and warnings can be safely ignored as long as the VM continues its boot-up).
