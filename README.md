@@ -41,7 +41,7 @@ Instructions for accessing VM folder on Win10 PC: https://www.techrepublic.com/a
 
 Getting Started Example
 =======================
-Please click the 00-va-App 0.2.x on Zeppelin Home page. Several image folders are provided within the VM at /home/saauser/upload for testing. 
+Please click the 00-va-App 0.2.x link showing on the Zeppelin Home page. Several image folders are provided within the VM at /home/saauser/upload for testing. 
 
 The VA-App loads one such example on startup. User inputs are already pre-filled in the 'Load Frames', 'KMeans', 'Select a Cluster', and 'Scene Inspector' paragraphs. This notebook should be initially run by clicking the run-all triangle button at the top. 
 
