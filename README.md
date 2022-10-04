@@ -1,6 +1,6 @@
 About
 =====
-S-BigVA™ is a fully functional *visual analytics* application implemented within a VirtualBox virtual machine (VM). It can be used for finding anomalies (strange events) within videos and image repositories. VM login and Samba login are both the same. 
+S-BigVA™ is a fully functional *visual analytics* application implemented within a VirtualBox virtual machine (VM). It can be used for finding anomalies (unique events) within videos and image repositories. VM login and Samba login are both the same. 
 <p>username: saauser password: saauserV7 
 
 Demo Videos
