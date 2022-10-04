@@ -3,6 +3,13 @@ About
 S-BigVA™ is a fully functional *visual analytics* application implemented within a VirtualBox virtual machine (VM). It can be used for finding anomalies (strange events) within videos and image repositories. VM login and Samba login are both the same. 
 <p>username: saauser password: saauserV7 
 
+Demo Videos
+===========
+[HTHH]: https://youtu.be/YRoUk5oB1qo
+[SITS]: https://youtu.be/Kfcy5US43cI
+- House on Haunted Hill (1959) an A.I. Rendition [HTHH]
+- Swallows in the Sun [SITS]
+
 Background Knowledge
 ====================
 Users with some prior experience in using a virtual machine and ssh will find using the app quite easy and may even be able to further customise it to fit into their own work flow e.g. home security cameras ftp'ing motion detected videos or snaps to the VM for daily video content analysis and alerts say with cron.
@@ -58,12 +65,6 @@ Troubleshooting
 - URL fails to load, please make sure no other program on your PC is using port 8081 or PC's firewall is not blocking this port. If so,  Zeppelin port can be changed from VM's Network Settings, NAT, Advanced, and changing 'host port' from 8081 to say 8082. NB: this fix will only work for http://localhost:[new_port_no] URL.
 - 'KMeans' pie chart is not showing. May need to drag the tiny triangle in bottom-right of the chart area down to expose the pie chart. This will happen with 100s of clusters, where the index takes too much space out of the default display area for the chart. 
 
-Demo Videos
-===========
-[SITS]: https://youtu.be/Kfcy5US43cI
-[HTHH]: https://youtu.be/YRoUk5oB1qo
-- Swallows in the Sun [SITS]
-- House on Haunted Hill (1959) an A.I. Rendition [HTHH]
 
 
 © 2022 http://www.sensoranalytics.com.au/
