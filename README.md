@@ -1,7 +1,6 @@
 About
 =====
-S-BigVA™ is a fully functional *visual analytics* application implemented within a VirtualBox virtual machine (VM). It can be used for finding anomalies (unique events) within videos and image repositories. VM login and Samba login are both the same. 
-<p>username: saauser password: saauserV7 
+S-BigVA™ is a fully functional *visual analytics* application implemented within a VirtualBox virtual machine (VM). It can be used for finding anomalies (unique events) within videos and image repositories.
 
 Demo Videos
 ===========
@@ -24,7 +23,8 @@ System Requirement
 Installation
 ============
 [Downloaded from here]: http://www.sensoranalytics.com.au/assets/html/va-download.html
-- S-BigVA VM can be [Downloaded from here].
+- S-BigVA VM can be [Downloaded from here]. <p> The VM's login and samba login are both the same. 
+<p>username: saauser password: saauserV7 
 - Double clicking on the downloaded bigva*.ova distro file will import the VM into VirtualBox, process may take several minutes to few hours depending on the cpu-speed of the host PC. 
 - Adjust memory according to the host PC from the VM Settings (System menu). Allocate 4GB to this VM for an 8GB memory computer.
 - Once import is completed, pressing the start button will launch the VM (errors and warnings can be safely ignored as long as the VM continues its boot-up).
@@ -41,7 +41,7 @@ Use
 - VM's and host PC's ip addresses are in the pre and post login splash screens, may need to scroll back to see. These can also be found by executing ifconfig -a in the ssh/web shell. There are three options to exchange data with the VA-app:
 
 	(1) Once VM's ip address is known, files can be transferred from host PC --> VM using scp (or putty for win). NB: for scp and ssh the address should be saauser@your_router_assigned_ip instead of root@... as shown in the blue startup screen (we can only use root@... after root password is chosen).
-	(2) VM also exports its ~/upload folder as a SAMBA share, which can also be used for data transfers.
+	(2) VM also exports its ~/upload folder as a samba share, which can also be used for data transfers.
 Instructions for accessing VM folder on Win10 PC: https://www.techrepublic.com/article/how-to-connect-to-linux-samba-shares-from-windows-10/
 	(3) Installing VirtualBox Guest Addition and enabling the shared folder(s) between the VM and the host PC.
 
