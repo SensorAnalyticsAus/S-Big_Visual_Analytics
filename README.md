@@ -3,10 +3,6 @@ About
 S-BigVA™ is a fully functional *visual analytics* application implemented within a VirtualBox virtual machine (VM). It can be used for finding anomalies (strange events) within videos and image repositories. VM login and Samba login are both the same. 
 <p>username: saauser password: saauserV7 
 
-For more Information
-====================
-http://sensoranalytics.com.au/#_va
-
 Background Knowledge
 ====================
 Users with some prior experience in using a virtual machine and ssh will find using the app quite easy and may even be able to further customise it to fit into their own work flow e.g. home security cameras ftp'ing motion detected videos or snaps to the VM for daily video content analysis and alerts say with cron.
