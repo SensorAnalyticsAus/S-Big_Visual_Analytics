@@ -22,7 +22,7 @@ System Requirement
 
 Installation
 ============
-[Downloaded from here]: http://www.sensoranalytics.com.au/assets/html/va-download.html
+[Downloaded from here]: https://www.sensoranalytics.com.au/assets/html/va-download.html
 - S-BigVA VM can be [Downloaded from here]. The VM's login and samba login are both the same. Username: saauser password: saauserV7 
 - Double clicking on the downloaded bigva*.ova distro file will import the VM into VirtualBox, process may take several minutes to few hours depending on the cpu-speed of the host PC. 
 - Adjust memory according to the host PC from the VM Settings (System menu). Allocate 4GB to this VM for an 8GB memory computer.
@@ -53,7 +53,7 @@ The VA-App loads one such example on startup. User inputs are already pre-filled
 
 NB: For repeat trials with varying number of clusters, only the 'KMeans' and the two subsequent paragraphs need to be run (from paragraph's cog-wheel 'Run all below' option), [for further information].
 							
-[for further information]: http://sensoranalytics.com.au/#_va
+[for further information]: https://sensoranalytics.com.au/#_va
 
 Troubleshooting
 ===============
@@ -66,4 +66,4 @@ Troubleshooting
 
 
 
-© 2022 http://www.sensoranalytics.com.au/
+© 2022 https://www.sensoranalytics.com.au/
