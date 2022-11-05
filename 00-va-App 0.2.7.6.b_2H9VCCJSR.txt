@@ -1,0 +1,459 @@
+00 Video Analytics App @134 px
+%spark
+println("%html <a href=\"http://sensoranalytics.com.au/\"><img src=\"http://sensoranalytics.com.au/assets/images/title.png\" width=\"50\" height=\"50\" ></a>")
+println("<h3 style=\"color:grey\";> Video Analytics App @134 px</h3><h7><a href=\"http://sensoranalytics.com.au/\">by Sensor Analytics Australia</h7></a>")
+
+01 About
+%md
+### About
+###### This app is for discovering anomalies in video scenes. Anomaly detection is a different problem to motion detection. For anomaly detection, a scene may be continually changing e.g. something moving in the breeze or background motion yet a fundamental change to the scene (an anonmaly) can still be detected.
+### Instructions
+###### [1] JPG frames extracted from any video clip to be analaysed should be uploaded into this vm into saauser@bigvm2:~/upload/your_folder_name  (ffmpeg -i myvideo.mp4 -r 1 myvideofms%03d.jpg)
+###### [2] The above path needs to be specfied in *'Load Frames'* 
+###### [3] *Kmeans* *numCluster* can be set as 2, 3, so on in  **'Kmeans'**. Choice of numClusters is data dependent, however generally a value between 3 to 6 that maximises the *Silhouette with squared euclidean distance* should be a good starting point. In the absence of small clusters, *numCluster* should be gradaually increased until few small clusters (members<5) appear. Anomalous images are likely to occur in the few smallest of the clusters.
+
+### Note:
+###### The jpgs folder has to be copied into the vm for zeppelin to be able to read these, currently /home/saauser/upload is being provided as samba share 'upload'.
+
+02 Setup Data Paths & Options
+%spark.pyspark
+
+import os
+from subprocess import call
+from pathlib import Path
+
+img_path_hires_o = z.textbox("Images folder:","/home/saauser/upload/osprey/jpg/")
+img_path_hires = img_path_hires_o+"/"
+uniq_ext = os.path.basename(img_path_hires_o)
+img_path = "/tmp/cache_"+uniq_ext
+pca_path = "/tmp/pca_"+uniq_ext
+Path(pca_path).mkdir(parents=True, exist_ok=True) #make pca_path dir/ if it doesn't exist
+
+options = [("col","JPG"),("bw","Mono"), ("corr","Correct Images"), ("cacheclr","Cache Clear")]
+zval= z.checkbox("Select Color or Mono-Channel Images",options)
+
+if any("cacheclr" in s for s in zval): #remove low res img folder if this flag is set
+    cret=call(['rm','-rf',img_path])
+    if cret == 0:
+        print(img_path,": cleared")
+    else:
+        print(img_path,": Not cleared")
+cret=call(['rsync','-varuzpP','--delete',img_path_hires,img_path])
+if cret == 0:
+    print(img_path_hires,"-> staged successfully in :",img_path)
+else:
+    print(img_path_hires,"-> failed to stage in :",img_path)
+
+03 Load Frames
+%spark.pyspark
+
+import random
+import sys
+import numpy as np
+from matplotlib.image import imread
+import matplotlib.pyplot as plt
+from PIL import Image
+import glob
+
+def clean_up(path):
+    clean_these = glob.glob(os.path.join(path,'._*'))
+    if clean_these:
+        for f in clean_these:
+            fname = f.rstrip() # or depending on situation: f.rstrip('\n')
+            # or, if you get rid of os.chdir(path) above,
+            # fname = os.path.join(path, f.rstrip())
+            if os.path.isfile(fname): # this makes the code more robust
+                os.remove(fname)
+
+def resize_134(path):
+    dirs = os.listdir( path )
+    new_ht = 134
+    for img_p_nm in dirs:
+        img_p_nm = os.path.join(path,img_p_nm)
+        #img_p_nm = path+"/"+img_p_nm
+        #print(img_p_nm)
+        if img_p_nm == os.path.join(path,'.DS_Store'):
+            continue
+        if os.path.isfile(img_p_nm):
+            im = Image.open(img_p_nm)
+            new_wd = int(round(im.size[0]/im.size[1]*new_ht,0))
+            if im.size[1] != 134:
+                resized_im = im.resize((new_wd,new_ht), Image.ANTIALIAS)
+                resized_im.save(img_p_nm)
+
+
+def load_images(folder):
+    images = []
+    cnt=0
+    for filename in os.listdir(folder):
+        img = imread(os.path.join(folder,filename))
+        if any("corr" in s for s in zval):
+            img = np.clip(img,1,255) #<<<< rep zeroes with 1s  >>>>>>>>>>>>>>>>>>>>>>>>>
+            where_are_NaNs = ~np.isfinite(img) #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            img[where_are_NaNs] = 1
+            if cnt == 0:
+                print(">>>Input images error corrected<<<")
+        if img is not None:
+            if any("col" in s for s in zval):
+                if len(img.shape) > 2: #only load color images
+                    images.append(filename)
+                    images.append(img)
+                    cnt += 1
+            else:
+                if not len(img.shape) > 2: #only load bw images
+                    images.append(filename)
+                    images.append(img)
+                    cnt += 1
+    print(zval[0],"images loaded:",cnt)
+    return images
+def bw_images(images):
+    images_bw = []
+    bwcnt=0
+    colcnt=0
+    for idx in range(1,len(images), 2): # start at pos 1, step 2
+        images_bw.append(images[idx-1])  # copy over filename from prev
+        if(len(images[idx].shape)>2): # otherwise assume it's grey scale already
+            image_sum = images[idx].sum(axis=2)
+            images_bw.append(image_sum/image_sum.max())
+            colcnt += 1
+        else: 
+            images_bw.append(images[idx])
+            bwcnt += 1
+    print("Converted col->bw",colcnt,"Skipped bw->bw",bwcnt)
+    return images_bw
+
+clean_up(img_path)
+resize_134(img_path)
+images = load_images(img_path)
+images_bw = bw_images(images)
+images_np = np.array(images,dtype=object)
+images_bw_np = np.array(images_bw,dtype=object)
+
+# E.g. i=1 odd indices for images (even for image filenames)
+i = random.randrange(1,len(images_np),2) # pick a random odd index from np_images[]
+image_raw = images_np[i]
+image_bw = images_bw_np[i]
+
+# Displaying the image
+plt.figure(figsize=[12,8])
+plt.grid(False)
+if zval[0] == 'col':
+    plt.imshow(image_raw)
+else: plt.imshow(image_raw,cmap=plt.cm.gray)
+z.show(plt, width="400px")
+print("A randomly picked framesJPG:",images_np.shape, images_np[i-1], "img_size:",image_raw.shape)
+# Displaying the bw image version
+plt.figure(figsize=[12,8])
+plt.grid(False)
+plt.imshow(image_bw, cmap=plt.cm.gray)
+z.show(plt, width="400px")
+plt.close()
+print("images BW:",images_bw_np.shape, images_bw_np[i-1], "img_size:",images_bw_np[i].shape)
+
+04 Compute PCA
+
+%spark.pyspark
+
+from sklearn.decomposition import PCA, IncrementalPCA
+from itertools import chain
+
+def pca_img(images):
+    converted_data = []
+    for idx in range(1,len(images), 2): # start at pos 1, step 2
+        converted_data.append(images[idx-1])  # copy over filename from prev
+        converted_data.append(pca.fit_transform(images[idx]))
+    return converted_data
+def data_transformer(converted_data):
+    # takes pca n x 2 /per image transposes to 2 x n, then flatten as:
+    # pca00,pc01,..,pc0n, pca10,pca11,...pca1n (into a single row)
+    # per image for df creation in spark
+    # Ref only: for 2D dynamic arrays idx_td = len(converted_data)//2 # dynamic array 
+    # with two cols and half the rows. some_data = [[] for _ in range(idx_td)]
+    
+    keys_data = []
+    trans_data = []
+    
+    for idx in range(1,len(converted_data),2): # start at pos 1, step 2
+        keys_data.append(converted_data[idx-1]) # copy over filename from prev
+        converted_data_transposed = converted_data[idx].T 
+        flattened_converted_data_transposed_ = np.array(list(chain.from_iterable(converted_data_transposed)))
+        flattened_converted_data_transposed = flattened_converted_data_transposed_.T
+        trans_data.append(flattened_converted_data_transposed)
+    return np.array(keys_data), np.array(trans_data)
+
+pca = PCA(2) # we need 2 principal components.
+
+# do pca on all the bw images reduce image_length to 2 cols
+conv_data = np.array(pca_img(images_bw_np),dtype=object)
+
+# keys_data has the image filenames <-> to each row of trans_data[PCA01..PCA0n,PCA11,..PCA1n - a row/image]
+keys_data, trans_data = data_transformer(conv_data)
+
+#np.set_printoptions(suppress=True)
+#print(keys_data.shape, keys_data, os.listdir("/home/saauser/upload/ngc/jpg"))
+#print(trans_data.shape, trans_data)
+
+# Save the source filenames and PCA results to separate files (only for debugging if needed)
+#np.savetxt("/home/saauser/upload/ngc/pca/keys-all-jpg.csv", keys_data, delimiter=",", fmt='%s')
+#np.savetxt("/home/saauser/upload/ngc/pca/pca-all-jpg.csv", trans_data, delimiter=",")
+np.savetxt(os.path.join(pca_path,"keys-all-jpg.csv"), keys_data, delimiter=",", fmt='%s')
+np.savetxt(os.path.join(pca_path,"pca-all-jpg.csv"), trans_data, delimiter=",")
+
+05 Output to CSV a Combined Data & Keys Array for use with Spark
+%spark.pyspark
+import csv
+import uuid
+
+
+pca_out_file = str(uuid.uuid4())+".csv"
+pca_out_file_fullpath = os.path.join(pca_path, pca_out_file)
+
+f = open(pca_out_file_fullpath, 'w')
+
+writer = csv.writer(f)
+rows, cols = trans_data.shape
+for i in range(rows):
+    trans_keys_row = np.append(trans_data[i], keys_data[i])
+    writer.writerow(trans_keys_row)
+f.close()
+
+z.put("pcaOutFile",pca_out_file_fullpath) #Saved for Spark scala use in Load PCA Data -> Spark DF
+
+06 Load PCA Data -> Spark DF
+%spark
+val ANSI_RESET = "\u001B[0m"
+val ANSI_BLACK = "\u001B[30m"
+val ANSI_RED = "\u001B[31m"
+val ANSI_GREEN = "\u001B[32m"
+val ANSI_YELLOW = "\u001B[33m"
+val ANSI_BLUE = "\u001B[34m"
+val ANSI_PURPLE = "\u001B[35m"
+val ANSI_CYAN = "\u001B[36m"
+val ANSI_WHITE = "\u001B[37m"
+println(ANSI_RESET)
+
+val pcaOutFile = z.get("pcaOutFile") 
+println(pcaOutFile)
+
+val df = spark.read.format("csv").option("header","false").option("inferSchema","true").option("delimiter",",")
+.load("file://"+pcaOutFile)
+
+07 One big string generated programatically for DF1
+%spark
+
+// Run only if input image height is != 134 pixels
+val img_width = df.columns.size - 1 // last col in df has image filename hence deducted
+val c2 = img_width/2
+
+val x = List.tabulate(c2) ( n => s"""array(col("_c$n"),col("_c${c2+n}")).as("PCA$n")""" )
+
+val y = s"""col("_c${img_width}").as("REF"), """
+
+val yx = (y+x).replace("List(","")
+println(yx) 
+
+08 Create PCA Cols and a REF Col - Copy-Paste above String if img height != 134px
+
+%spark
+
+//val cols = df copy pasted from previous paragrapgh below (seem this is the only way to get this thing to work:
+//New copy-paste is only required if image height is !=134
+
+val df1 = df.select(col("_c268").as("REF"), array(col("_c0"),col("_c134")).as("PCA0"), array(col("_c1"),col("_c135")).as("PCA1"), array(col("_c2"),col("_c136")).as("PCA2"), array(col("_c3"),col("_c137")).as("PCA3"), array(col("_c4"),col("_c138")).as("PCA4"), array(col("_c5"),col("_c139")).as("PCA5"), array(col("_c6"),col("_c140")).as("PCA6"), array(col("_c7"),col("_c141")).as("PCA7"), array(col("_c8"),col("_c142")).as("PCA8"), array(col("_c9"),col("_c143")).as("PCA9"), array(col("_c10"),col("_c144")).as("PCA10"), array(col("_c11"),col("_c145")).as("PCA11"), array(col("_c12"),col("_c146")).as("PCA12"), array(col("_c13"),col("_c147")).as("PCA13"), array(col("_c14"),col("_c148")).as("PCA14"), array(col("_c15"),col("_c149")).as("PCA15"), array(col("_c16"),col("_c150")).as("PCA16"), array(col("_c17"),col("_c151")).as("PCA17"), array(col("_c18"),col("_c152")).as("PCA18"), array(col("_c19"),col("_c153")).as("PCA19"), array(col("_c20"),col("_c154")).as("PCA20"), array(col("_c21"),col("_c155")).as("PCA21"), array(col("_c22"),col("_c156")).as("PCA22"), array(col("_c23"),col("_c157")).as("PCA23"), array(col("_c24"),col("_c158")).as("PCA24"), array(col("_c25"),col("_c159")).as("PCA25"), array(col("_c26"),col("_c160")).as("PCA26"), array(col("_c27"),col("_c161")).as("PCA27"), array(col("_c28"),col("_c162")).as("PCA28"), array(col("_c29"),col("_c163")).as("PCA29"), array(col("_c30"),col("_c164")).as("PCA30"), array(col("_c31"),col("_c165")).as("PCA31"), array(col("_c32"),col("_c166")).as("PCA32"), array(col("_c33"),col("_c167")).as("PCA33"), array(col("_c34"),col("_c168")).as("PCA34"), array(col("_c35"),col("_c169")).as("PCA35"), array(col("_c36"),col("_c170")).as("PCA36"), array(col("_c37"),col("_c171")).as("PCA37"), array(col("_c38"),col("_c172")).as("PCA38"), array(col("_c39"),col("_c173")).as("PCA39"), array(col("_c40"),col("_c174")).as("PCA40"), array(col("_c41"),col("_c175")).as("PCA41"), array(col("_c42"),col("_c176")).as("PCA42"), array(col("_c43"),col("_c177")).as("PCA43"), array(col("_c44"),col("_c178")).as("PCA44"), array(col("_c45"),col("_c179")).as("PCA45"), array(col("_c46"),col("_c180")).as("PCA46"), array(col("_c47"),col("_c181")).as("PCA47"), array(col("_c48"),col("_c182")).as("PCA48"), array(col("_c49"),col("_c183")).as("PCA49"), array(col("_c50"),col("_c184")).as("PCA50"), array(col("_c51"),col("_c185")).as("PCA51"), array(col("_c52"),col("_c186")).as("PCA52"), array(col("_c53"),col("_c187")).as("PCA53"), array(col("_c54"),col("_c188")).as("PCA54"), array(col("_c55"),col("_c189")).as("PCA55"), array(col("_c56"),col("_c190")).as("PCA56"), array(col("_c57"),col("_c191")).as("PCA57"), array(col("_c58"),col("_c192")).as("PCA58"), array(col("_c59"),col("_c193")).as("PCA59"), array(col("_c60"),col("_c194")).as("PCA60"), array(col("_c61"),col("_c195")).as("PCA61"), array(col("_c62"),col("_c196")).as("PCA62"), array(col("_c63"),col("_c197")).as("PCA63"), array(col("_c64"),col("_c198")).as("PCA64"), array(col("_c65"),col("_c199")).as("PCA65"), array(col("_c66"),col("_c200")).as("PCA66"), array(col("_c67"),col("_c201")).as("PCA67"), array(col("_c68"),col("_c202")).as("PCA68"), array(col("_c69"),col("_c203")).as("PCA69"), array(col("_c70"),col("_c204")).as("PCA70"), array(col("_c71"),col("_c205")).as("PCA71"), array(col("_c72"),col("_c206")).as("PCA72"), array(col("_c73"),col("_c207")).as("PCA73"), array(col("_c74"),col("_c208")).as("PCA74"), array(col("_c75"),col("_c209")).as("PCA75"), array(col("_c76"),col("_c210")).as("PCA76"), array(col("_c77"),col("_c211")).as("PCA77"), array(col("_c78"),col("_c212")).as("PCA78"), array(col("_c79"),col("_c213")).as("PCA79"), array(col("_c80"),col("_c214")).as("PCA80"), array(col("_c81"),col("_c215")).as("PCA81"), array(col("_c82"),col("_c216")).as("PCA82"), array(col("_c83"),col("_c217")).as("PCA83"), array(col("_c84"),col("_c218")).as("PCA84"), array(col("_c85"),col("_c219")).as("PCA85"), array(col("_c86"),col("_c220")).as("PCA86"), array(col("_c87"),col("_c221")).as("PCA87"), array(col("_c88"),col("_c222")).as("PCA88"), array(col("_c89"),col("_c223")).as("PCA89"), array(col("_c90"),col("_c224")).as("PCA90"), array(col("_c91"),col("_c225")).as("PCA91"), array(col("_c92"),col("_c226")).as("PCA92"), array(col("_c93"),col("_c227")).as("PCA93"), array(col("_c94"),col("_c228")).as("PCA94"), array(col("_c95"),col("_c229")).as("PCA95"), array(col("_c96"),col("_c230")).as("PCA96"), array(col("_c97"),col("_c231")).as("PCA97"), array(col("_c98"),col("_c232")).as("PCA98"), array(col("_c99"),col("_c233")).as("PCA99"), array(col("_c100"),col("_c234")).as("PCA100"), array(col("_c101"),col("_c235")).as("PCA101"), array(col("_c102"),col("_c236")).as("PCA102"), array(col("_c103"),col("_c237")).as("PCA103"), array(col("_c104"),col("_c238")).as("PCA104"), array(col("_c105"),col("_c239")).as("PCA105"), array(col("_c106"),col("_c240")).as("PCA106"), array(col("_c107"),col("_c241")).as("PCA107"), array(col("_c108"),col("_c242")).as("PCA108"), array(col("_c109"),col("_c243")).as("PCA109"), array(col("_c110"),col("_c244")).as("PCA110"), array(col("_c111"),col("_c245")).as("PCA111"), array(col("_c112"),col("_c246")).as("PCA112"), array(col("_c113"),col("_c247")).as("PCA113"), array(col("_c114"),col("_c248")).as("PCA114"), array(col("_c115"),col("_c249")).as("PCA115"), array(col("_c116"),col("_c250")).as("PCA116"), array(col("_c117"),col("_c251")).as("PCA117"), array(col("_c118"),col("_c252")).as("PCA118"), array(col("_c119"),col("_c253")).as("PCA119"), array(col("_c120"),col("_c254")).as("PCA120"), array(col("_c121"),col("_c255")).as("PCA121"), array(col("_c122"),col("_c256")).as("PCA122"), array(col("_c123"),col("_c257")).as("PCA123"), array(col("_c124"),col("_c258")).as("PCA124"), array(col("_c125"),col("_c259")).as("PCA125"), array(col("_c126"),col("_c260")).as("PCA126"), array(col("_c127"),col("_c261")).as("PCA127"), array(col("_c128"),col("_c262")).as("PCA128"), array(col("_c129"),col("_c263")).as("PCA129"), array(col("_c130"),col("_c264")).as("PCA130"), array(col("_c131"),col("_c265")).as("PCA131"), array(col("_c132"),col("_c266")).as("PCA132"), array(col("_c133"),col("_c267")).as("PCA133"))
+
+z.show(df1)
+
+//create featuresArray
+val cols = df1.columns.toArray.map(col(_).toString)
+val b = cols.toBuffer
+b.remove(0)
+val featuresArray = b.toArray
+
+09 One big string generated programatically for DF1 (REF and PCA Cols)
+%spark
+import org.apache.spark.ml.linalg.Vectors
+
+// Run only if input image height is != 134 pixels
+
+val d2 = df1.columns.size - 1 // first col in df1 has image filename hence deducted
+
+// Spark 2.0. For 1.x use mllib
+// https://spark.apache.org/docs/latest/sql-programming-guide.html#data-types
+//Ref https://stackoverflow.com/a/41091839/4106464
+val seqAsVector = udf((xs: Seq[Double]) => Vectors.dense(xs.toArray))
+
+val p = List.tabulate(d2) ( n => s"""seqAsVector(col("PCA$n")).as("PCA$n")""" )
+
+val q = s"""col("REF"), """
+
+val qp = (q+p).replace("List(","")
+println(qp) 
+
+10 Covert Double Array Cols to Dense Vector - Copy-Paste above if img height !=134
+
+%spark
+import org.apache.spark.sql.functions.{col, udf}
+
+val df1_final = df1.select(col("REF"), seqAsVector(col("PCA0")).as("PCA0"), seqAsVector(col("PCA1")).as("PCA1"), seqAsVector(col("PCA2")).as("PCA2"), seqAsVector(col("PCA3")).as("PCA3"), seqAsVector(col("PCA4")).as("PCA4"), seqAsVector(col("PCA5")).as("PCA5"), seqAsVector(col("PCA6")).as("PCA6"), seqAsVector(col("PCA7")).as("PCA7"), seqAsVector(col("PCA8")).as("PCA8"), seqAsVector(col("PCA9")).as("PCA9"), seqAsVector(col("PCA10")).as("PCA10"), seqAsVector(col("PCA11")).as("PCA11"), seqAsVector(col("PCA12")).as("PCA12"), seqAsVector(col("PCA13")).as("PCA13"), seqAsVector(col("PCA14")).as("PCA14"), seqAsVector(col("PCA15")).as("PCA15"), seqAsVector(col("PCA16")).as("PCA16"), seqAsVector(col("PCA17")).as("PCA17"), seqAsVector(col("PCA18")).as("PCA18"), seqAsVector(col("PCA19")).as("PCA19"), seqAsVector(col("PCA20")).as("PCA20"), seqAsVector(col("PCA21")).as("PCA21"), seqAsVector(col("PCA22")).as("PCA22"), seqAsVector(col("PCA23")).as("PCA23"), seqAsVector(col("PCA24")).as("PCA24"), seqAsVector(col("PCA25")).as("PCA25"), seqAsVector(col("PCA26")).as("PCA26"), seqAsVector(col("PCA27")).as("PCA27"), seqAsVector(col("PCA28")).as("PCA28"), seqAsVector(col("PCA29")).as("PCA29"), seqAsVector(col("PCA30")).as("PCA30"), seqAsVector(col("PCA31")).as("PCA31"), seqAsVector(col("PCA32")).as("PCA32"), seqAsVector(col("PCA33")).as("PCA33"), seqAsVector(col("PCA34")).as("PCA34"), seqAsVector(col("PCA35")).as("PCA35"), seqAsVector(col("PCA36")).as("PCA36"), seqAsVector(col("PCA37")).as("PCA37"), seqAsVector(col("PCA38")).as("PCA38"), seqAsVector(col("PCA39")).as("PCA39"), seqAsVector(col("PCA40")).as("PCA40"), seqAsVector(col("PCA41")).as("PCA41"), seqAsVector(col("PCA42")).as("PCA42"), seqAsVector(col("PCA43")).as("PCA43"), seqAsVector(col("PCA44")).as("PCA44"), seqAsVector(col("PCA45")).as("PCA45"), seqAsVector(col("PCA46")).as("PCA46"), seqAsVector(col("PCA47")).as("PCA47"), seqAsVector(col("PCA48")).as("PCA48"), seqAsVector(col("PCA49")).as("PCA49"), seqAsVector(col("PCA50")).as("PCA50"), seqAsVector(col("PCA51")).as("PCA51"), seqAsVector(col("PCA52")).as("PCA52"), seqAsVector(col("PCA53")).as("PCA53"), seqAsVector(col("PCA54")).as("PCA54"), seqAsVector(col("PCA55")).as("PCA55"), seqAsVector(col("PCA56")).as("PCA56"), seqAsVector(col("PCA57")).as("PCA57"), seqAsVector(col("PCA58")).as("PCA58"), seqAsVector(col("PCA59")).as("PCA59"), seqAsVector(col("PCA60")).as("PCA60"), seqAsVector(col("PCA61")).as("PCA61"), seqAsVector(col("PCA62")).as("PCA62"), seqAsVector(col("PCA63")).as("PCA63"), seqAsVector(col("PCA64")).as("PCA64"), seqAsVector(col("PCA65")).as("PCA65"), seqAsVector(col("PCA66")).as("PCA66"), seqAsVector(col("PCA67")).as("PCA67"), seqAsVector(col("PCA68")).as("PCA68"), seqAsVector(col("PCA69")).as("PCA69"), seqAsVector(col("PCA70")).as("PCA70"), seqAsVector(col("PCA71")).as("PCA71"), seqAsVector(col("PCA72")).as("PCA72"), seqAsVector(col("PCA73")).as("PCA73"), seqAsVector(col("PCA74")).as("PCA74"), seqAsVector(col("PCA75")).as("PCA75"), seqAsVector(col("PCA76")).as("PCA76"), seqAsVector(col("PCA77")).as("PCA77"), seqAsVector(col("PCA78")).as("PCA78"), seqAsVector(col("PCA79")).as("PCA79"), seqAsVector(col("PCA80")).as("PCA80"), seqAsVector(col("PCA81")).as("PCA81"), seqAsVector(col("PCA82")).as("PCA82"), seqAsVector(col("PCA83")).as("PCA83"), seqAsVector(col("PCA84")).as("PCA84"), seqAsVector(col("PCA85")).as("PCA85"), seqAsVector(col("PCA86")).as("PCA86"), seqAsVector(col("PCA87")).as("PCA87"), seqAsVector(col("PCA88")).as("PCA88"), seqAsVector(col("PCA89")).as("PCA89"), seqAsVector(col("PCA90")).as("PCA90"), seqAsVector(col("PCA91")).as("PCA91"), seqAsVector(col("PCA92")).as("PCA92"), seqAsVector(col("PCA93")).as("PCA93"), seqAsVector(col("PCA94")).as("PCA94"), seqAsVector(col("PCA95")).as("PCA95"), seqAsVector(col("PCA96")).as("PCA96"), seqAsVector(col("PCA97")).as("PCA97"), seqAsVector(col("PCA98")).as("PCA98"), seqAsVector(col("PCA99")).as("PCA99"), seqAsVector(col("PCA100")).as("PCA100"), seqAsVector(col("PCA101")).as("PCA101"), seqAsVector(col("PCA102")).as("PCA102"), seqAsVector(col("PCA103")).as("PCA103"), seqAsVector(col("PCA104")).as("PCA104"), seqAsVector(col("PCA105")).as("PCA105"), seqAsVector(col("PCA106")).as("PCA106"), seqAsVector(col("PCA107")).as("PCA107"), seqAsVector(col("PCA108")).as("PCA108"), seqAsVector(col("PCA109")).as("PCA109"), seqAsVector(col("PCA110")).as("PCA110"), seqAsVector(col("PCA111")).as("PCA111"), seqAsVector(col("PCA112")).as("PCA112"), seqAsVector(col("PCA113")).as("PCA113"), seqAsVector(col("PCA114")).as("PCA114"), seqAsVector(col("PCA115")).as("PCA115"), seqAsVector(col("PCA116")).as("PCA116"), seqAsVector(col("PCA117")).as("PCA117"), seqAsVector(col("PCA118")).as("PCA118"), seqAsVector(col("PCA119")).as("PCA119"), seqAsVector(col("PCA120")).as("PCA120"), seqAsVector(col("PCA121")).as("PCA121"), seqAsVector(col("PCA122")).as("PCA122"), seqAsVector(col("PCA123")).as("PCA123"), seqAsVector(col("PCA124")).as("PCA124"), seqAsVector(col("PCA125")).as("PCA125"), seqAsVector(col("PCA126")).as("PCA126"), seqAsVector(col("PCA127")).as("PCA127"), seqAsVector(col("PCA128")).as("PCA128"), seqAsVector(col("PCA129")).as("PCA129"), seqAsVector(col("PCA130")).as("PCA130"), seqAsVector(col("PCA131")).as("PCA131"), seqAsVector(col("PCA132")).as("PCA132"), seqAsVector(col("PCA133")).as("PCA133"))
+z.show(df1_final)
+
+11 Input DF Setup
+%spark
+//Convert the orginal dataframe into the format suitable for ML Clustering
+import org.apache.spark.ml.feature.VectorAssembler
+import org.apache.spark.ml.linalg.Vectors
+
+val assembler = new VectorAssembler().setInputCols(featuresArray).setOutputCol("features")
+val output = assembler.transform(df1_final)
+//output.show
+val dataset = output.select($"REF",$"features").toDF
+//dataset.show(false)
+println("Input DataFrame with features col added for ML\n===\n")
+z.show(dataset)
+
+12 KMeans
+%spark
+println(ANSI_RESET)
+//Clustering (Unsupervised)
+import org.apache.spark.ml.clustering.KMeans
+import org.apache.spark.ml.evaluation.ClusteringEvaluator
+
+val numClust_ = z.textbox("Enter max number of clusters to use in kmeans:","2").toString
+val numClust = numClust_.toInt
+
+// Trains a k-means model with numClust clusters specified.
+val kmeans = new KMeans().setK(numClust).setSeed(1L)
+val model = kmeans.fit(dataset)
+// Make predictions
+val predictions_raw = model.transform(dataset)
+val predictions = predictions_raw.select($"REF",$"prediction")
+
+//predictions.show(false)
+// Evaluate clustering by computing Silhouette score
+val evaluator = new ClusteringEvaluator()
+val silhouette = evaluator.evaluate(predictions_raw)
+println(s"Silhouette with squared euclidean distance = $silhouette")
+println("predictions rows:"+predictions.count+" prediction cols:"+predictions.columns.size)
+val clCenters = model.clusterCenters
+//z.show(predictions)
+// no of categories
+val predictionsDF_g= predictions_raw.groupBy("prediction").count()
+z.show(predictionsDF_g)
+
+13 Set Display Range
+%spark
+val minClust_ = z.textbox("Enter min number of items/cluster to display:","1").toString
+val minClust = minClust_.toInt
+val maxClust_ = z.textbox("Enter max number of items/cluster to display:","1000000").toString
+val maxClust = maxClust_.toInt
+
+val predictionsDF_min =  predictionsDF_g.filter($"count" >= minClust && $"count" <= maxClust )
+//z.show(predictions)
+z.show(predictionsDF_min)
+
+14
+%spark
+
+val tNum = z.textbox("Enter a cluster no from Set Display Range chart. Then run Scene Inspector below to display the images in this cluster:", "0" ).toString
+val pNum = tNum.toInt
+
+val predictions_sel = predictions.filter(col("prediction") === pNum)
+//val predictions_oth = predictions.filter(col("prediction") =!= pNum)
+val listREF=predictions_sel.select("REF").map(f=>f.getString(0)).collect.toList
+//val listOTH=predictions_oth.select("REF").map(f=>f.getString(0)).collect.toList
+z.put("listRef",listREF)
+//z.put("listOth", listOTH)
+z.put("pNum",pNum)
+
+15 Scene Inspector
+%spark.pyspark
+class color:
+   PURPLE = '\033[95m'
+   CYAN = '\033[96m'
+   DARKCYAN = '\033[36m'
+   BLUE = '\033[94m'
+   GREEN = '\033[92m'
+   YELLOW = '\033[93m'
+   RED = '\033[91m'
+   BOLD = '\033[1m'
+   UNDERLINE = '\033[4m'
+   END = '\033[0m'
+#imgfilename = z.textbox("Enter image filename.ext:")
+
+listRef = z.get("listRef")
+
+pylistRef = [listRef.apply(i) for i in range(listRef.size())]
+
+def find_img(imgfile):
+    for i in range(0, len(images_bw),2):
+        if imgfile == images[i]:
+            idx = i
+            img = images[i]
+    return idx
+def disp_img(listRef):
+    idx = find_img(rand_pick)
+    image_bw = images[idx+1]
+    #print(idx//2, images[idx]) #halved as images are stored in every 2nd position im images[]
+    # Displaying the image
+    plt.figure(figsize=[12,8])
+    plt.grid(False)
+    plt.imshow(image_bw,cmap=plt.cm.gray)
+    print(color.PURPLE+"Max four Random Picks from Cluster No:"+color.END,z.get("pNum"),"\t\n",rand_pick)
+    z.show(plt, width="550px")
+    return idx
+def disp_img_multi(listRef):
+    f, axarr = plt.subplots(2,2)
+    f.set_figheight(8)
+    f.set_figwidth(12)
+    for ax in f.get_axes(): #label outer axis only 
+        #ref https://matplotlib.org/3.1.1/gallery/subplots_axes_and_figures/subplots_demo.html
+        ax.label_outer()
+    idx = []
+    for i in range(4):
+        idx.append(find_img(rand_picks[i]))
+    k = 0
+    for i in range(len(axarr)): # hide grid
+        for j in range(len(axarr[i])):
+            axarr[i,j].grid(False)
+            axarr[i,j].imshow(images[idx[k]+1],cmap=plt.cm.gray)
+            k += 1
+    print(color.PURPLE+"Max four Random Picks from Cluster No:"+color.END,z.get("pNum"),"\t\n",rand_picks[0],rand_picks[1],"\n",rand_picks[2],rand_picks[3])
+    z.show(plt)
+    plt.close
+    return idx
+def disp_sca(idx,listRef):
+    image_bw = images_bw[idx+1]
+    #print(idx//2, images[idx]) #halved as images are stored in every 2nd position im images[]
+    # Displaying the image
+    plt.figure(figsize=[12,8])
+    plt.scatter(conv_data[idx+1][:, 0], conv_data[idx+1][:, 1], s=15)
+    print("(",rand_pick,")")
+    z.show(plt, width="550px")
+def disp_sca_multi(idx, listRef):
+    plt.style.use('seaborn-whitegrid')
+    f, axarr = plt.subplots(2,2)
+    f.set_figheight(8)
+    f.set_figwidth(12)
+    f.suptitle("Corresponding PCA Scatter Plots")
+    for ax in f.get_axes():
+        ax.label_outer()
+    k = 0
+    for i in range(len(axarr)):
+        for j in range(len(axarr[i])):
+            axarr[i,j].scatter(conv_data[idx[k]+1][:, 0], conv_data[idx[k]+1][:, 1], s=15)
+            axarr[i,j].set(xlabel='PC-1',ylabel='PC-2')
+            #print(conv_data[idx[k]])
+            k += 1
+    print("(",rand_picks[0],rand_picks[1],rand_picks[2],rand_picks[3],")")
+    z.show(plt)
+    plt.close
+####################################################
+import random
+if len(pylistRef) > 4:
+    rand_picks = random.sample(pylistRef, 4) #pick four img filenames randomly
+else:        
+    rand_pick = random.choice(pylistRef) #pick one img filenames randomly
+if len(pylistRef) > 4:
+    idx = disp_img_multi(pylistRef)
+else:
+    idx = disp_img(pylistRef)
